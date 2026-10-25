@@ -5,7 +5,7 @@ Il n'occupe qu'une place sur le plan gratuit de TradingView.
 
 Pensé pour le daily et le weekly : repérer la tendance, les grands supports, et les extrêmes du RSI avec le moins de retard possible.
 
-[Aperçu]([img]https://i.imgur.com/nXQhP9h.jpeg[/img])
+[Aperçu](https://i.imgur.com/nXQhP9h.jpeg)
 
 ## Installation
 
