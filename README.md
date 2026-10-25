@@ -4,7 +4,7 @@ Moyennes mobiles et RSI réunis dans **un seul indicateur** TradingView.
 
 Il sert à repérer, en daily ou en weekly, le moment où un titre en tendance revient sur un support avec un RSI en survente.
 
-[Aperçu](https://i.imgur.com/uBNe1xy.jpeg)
+![Aperçu](https://i.imgur.com/uBNe1xy.jpeg)
 
 ## Installation
 
