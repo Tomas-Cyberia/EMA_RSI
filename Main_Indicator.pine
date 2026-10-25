@@ -270,38 +270,33 @@ bearShow  = showTurn and bearTurn and (bearWith or not hideCtr)
 // Point plein : dans le sens de la tendance de fond. Anneau : contre. Gros point : survente sur un support.
 // Dessinés en étiquettes, qui ne comptent pas dans la limite de 64 tracés de Pine (contrairement à plotchar).
 // Le point se pose sur la barre du creux (ou du sommet), une barre avant la confirmation.
-// Le point plein est une vraie forme (cercle) ; l'anneau est un caractère, en teinte foncée pour rester lisible.
-turnDot(float y, color col, string sz, bool onPx, bool below) =>
-    if onPx
-        label.new(bar_index - 1, y, "", yloc = below ? yloc.belowbar : yloc.abovebar, color = col, style = label.style_circle, size = sz, force_overlay = true)
-    else
-        label.new(bar_index - 1, y, "", color = col, style = label.style_circle, size = sz)
+// Un seul gabarit pour tous les repères (tailles en points) : points, anneaux et triangles en 5, gros point en 7.
+// L'anneau est un disque de 5 évidé par un disque de la couleur du fond.
+// Sur le prix, le repère se place à 0,6 ATR sous le plus bas (ou au-dessus du plus haut) pour que l'anneau reste centré.
+SZ_DOT  = 5
+SZ_SUP  = 7
+SZ_HOLE = 3
+SZ_TRI  = 5
 
-turnRing(float y, color col, bool onPx, bool below) =>
-    if onPx
-        label.new(bar_index - 1, y, "○", yloc = below ? yloc.belowbar : yloc.abovebar, color = color(na), textcolor = readable(col), style = label.style_none, size = size.large, force_overlay = true)
-    else
-        label.new(bar_index - 1, y, "○", color = color(na), textcolor = readable(col), style = label.style_none, size = size.large)
+dotRsi(float y, color col, int sz) =>
+    label.new(bar_index - 1, y, "", color = col, style = label.style_circle, size = sz)
+
+dotPx(float y, color col, int sz) =>
+    label.new(bar_index - 1, y, "", color = col, style = label.style_circle, size = sz, force_overlay = true)
+
+turnMark(float yRsi, float yPx, color col, bool ring, int sz) =>
+    dotRsi(yRsi, col, sz)
+    if ring
+        dotRsi(yRsi, chart.bg_color, SZ_HOLE)
+    if turnOnPx
+        dotPx(yPx, col, sz)
+        if ring
+            dotPx(yPx, chart.bg_color, SZ_HOLE)
 
 if bullShow
-    if bullWith
-        string sz = bullOnSup ? size.normal : size.small
-        turnDot(rsi[1], C_BULL, sz, false, true)
-        if turnOnPx
-            turnDot(low[1], C_BULL, sz, true, true)
-    else
-        turnRing(rsi[1], C_BULL, false, true)
-        if turnOnPx
-            turnRing(low[1], C_BULL, true, true)
+    turnMark(rsi[1], low[1] - 0.6 * atr[1], C_BULL, not bullWith, bullWith and bullOnSup ? SZ_SUP : SZ_DOT)
 if bearShow
-    if bearWith
-        turnDot(rsi[1], C_BEAR, size.small, false, false)
-        if turnOnPx
-            turnDot(high[1], C_BEAR, size.small, true, false)
-    else
-        turnRing(rsi[1], C_BEAR, false, false)
-        if turnOnPx
-            turnRing(high[1], C_BEAR, true, false)
+    turnMark(rsi[1], high[1] + 0.6 * atr[1], C_BEAR, not bearWith, SZ_DOT)
 
 // ─── Failure swings de Wilder ───────────────────────────────────────────────
 // Haussier : survente, rebond, repli qui reste au-dessus de la survente, puis cassure du sommet du rebond.
@@ -376,9 +371,9 @@ if barstate.isconfirmed
 
 // Triangle plein, décalé de quelques points sous (ou au-dessus de) la ligne du RSI pour ne pas la masquer.
 if showFS and fsBull
-    label.new(bar_index, rsi - 4, "", color = C_BULL, style = label.style_triangleup, size = size.tiny, tooltip = "Failure swing haussier (Wilder) : la survente est validée")
+    label.new(bar_index, rsi - 4, "", color = C_BULL, style = label.style_triangleup, size = SZ_TRI, tooltip = "Failure swing haussier (Wilder) : la survente est validée")
 if showFS and fsBear
-    label.new(bar_index, rsi + 4, "", color = C_BEAR, style = label.style_triangledown, size = size.tiny, tooltip = "Failure swing baissier (Wilder) : le surachat est validé")
+    label.new(bar_index, rsi + 4, "", color = C_BEAR, style = label.style_triangledown, size = SZ_TRI, tooltip = "Failure swing baissier (Wilder) : le surachat est validé")
 
 // ─── Régime et durée en zone ────────────────────────────────────────────────
 // Régime (Cardwell, Brown) : en tendance haussière, le RSI tient au-dessus de 40 ;
