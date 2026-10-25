@@ -1,10 +1,11 @@
 # EMA · RSI
 
-Indicateur TradingView (Pine Script v6) qui réunit des moyennes mobiles sur le prix et un RSI dans **un seul indicateur**. Il n'occupe qu'une place sur le plan gratuit de TradingView.
+Indicateur TradingView (Pine Script v6) qui réunit des moyennes mobiles sur le prix et un RSI dans **un seul indicateur**. 
+Il n'occupe qu'une place sur le plan gratuit de TradingView.
 
 Pensé pour le daily et le weekly : repérer la tendance, les grands supports, et les extrêmes du RSI avec le moins de retard possible.
 
-<!-- Ajoute ici une capture : ![Aperçu](apercu.png) -->
+[Aperçu]([img]https://i.imgur.com/nXQhP9h.jpeg[/img])
 
 ## Installation
 
