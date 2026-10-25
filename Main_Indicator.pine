@@ -1,167 +1,584 @@
-//@version=5
-indicator("Indicateur Personnalisable + Styles + Tableau Latéral", overlay=true)
+//@version=6
+// EMA · RSI : moyennes mobiles sur le prix + RSI dans un seul indicateur (une seule place sur le plan gratuit).
+// Le script vit dans le volet RSI ; tout ce qui concerne le prix est forcé sur le graphique avec force_overlay.
+indicator("EMA · RSI", shorttitle = "EMA·RSI", overlay = false, max_labels_count = 500, max_lines_count = 500)
 
-// === INPUTS PARAMÉTRABLES ===
-// Couleurs EMAs
-ema20Color = input.color(color.orange, "Couleur EMA 20")
-ema50Color = input.color(color.teal, "Couleur EMA 50")
-ema100Color = input.color(color.fuchsia, "Couleur EMA 100")
-ema200Color = input.color(color.red, "Couleur EMA 200")
+// ─── Thème ──────────────────────────────────────────────────────────────────
+GA = "Apparence"
+theme  = input.string("Actuel", "Thème", options = ["Actuel", "Cobalt", "Graphite", "Nuit verte"], group = GA, tooltip = "Couleurs des moyennes, du nuage et du RSI. Le fond, les bougies et les zones se règlent dans TradingView : voir le guide.", display = display.none)
+isCob  = theme == "Cobalt"
+isGra  = theme == "Graphite"
+isNuit = theme == "Nuit verte"
 
-// Styles EMAs
-emaLineStyle = input.string("Solide", "Style ligne EMA", options=["Solide", "Pointillé", "Point-Point-Point"])
-emaLineWidth = input.int(2, "Épaisseur ligne EMA", minval=1, maxval=5)
+// Moyennes : Rapide, Intermédiaire, Lente, Supports 1 à 3, Autre UT.
+// Cobalt et Nuit verte : tons chauds pour le court terme, tons sombres ou froids pour les supports.
+// Graphite : bougies neutres, les moyennes portent la couleur.
+C_M1 = isCob ? #E0962E : isGra ? #2453D6 : isNuit ? #E8A54B : #1848CC
+C_M2 = isCob ? #D27B3A : isGra ? #6F8FE6 : isNuit ? #EDBB73 : #1384E1
+C_M3 = isCob ? #C2522D : isGra ? #2453D6 : isNuit ? #D9714A : #B22833
+C_M4 = isCob ? #0D7A66 : isGra ? #0D7A66 : isNuit ? #5FB3A1 : #056656
+C_M5 = isCob ? #3D4655 : isGra ? #C2522D : isNuit ? #E9E4D8 : #1848CC
+C_M6 = isCob ? #7A8290 : isGra ? #7A8290 : isNuit ? #8FA39B : #7F47B4
+C_M7 = isCob ? #4A6FA5 : isGra ? #D98A6A : isNuit ? #7FA7C9 : #E824CA
+LS_M1 = theme == "Actuel" ? plot.linestyle_dotted : plot.linestyle_solid
 
-// Opacité fonds (0 = transparent, 100 = opaque)
-bgOpacityPerc = input.int(85, "Opacité fond tendance (%)", minval=0, maxval=100)
+// Nuage : vert / rouge sur Actuel ; ailleurs, ton du thème en tendance haussière et ton neutre sinon.
+C_CLOUD_UP = isCob ? color.new(#E0962E, 85) : isGra ? color.new(#2453D6, 90) : isNuit ? color.new(#E8A54B, 86) : color.new(#2E9D76, 90)
+C_CLOUD_DN = isCob ? color.new(#3D4655, 92) : isGra ? color.new(#1C1F26, 94) : isNuit ? color.new(#C9D3CE, 94) : color.new(#CF4B43, 90)
 
-// Couleurs fonds bullish / bearish
-bullBgColor = input.color(color.new(color.green, 80), "Couleur fond bullish")
-bearBgColor = input.color(color.new(color.red, 80), "Couleur fond bearish")
+// Signaux et volet RSI.
+C_BULL = isNuit ? #5FB3A1 : #2E9D76
+C_BEAR = isNuit ? #E0705A : #CF4B43
+C_WARN = #D9A23D
+C_GRID = isNuit ? #5E6B66 : #787B86
+C_RSI  = isNuit ? #E9E4D8 : color.new(chart.fg_color, 10)
 
-// Couleurs signaux MACD
-macdBullColor = input.color(color.lime, "Couleur signal MACD bullish")
-macdBearColor = input.color(color.maroon, "Couleur signal MACD bearish")
+// Volet RSI : bande entre les seuils et ses bornes, dans la teinte de tes zones S/R.
+C_BAND  = isCob ? color.new(#2453D6, 94) : isGra ? color.new(#2453D6, 95) : isNuit ? color.new(#E9E4D8, 94) : color.new(#2962FF, 94)
+C_BOUND = isCob ? color.new(#2453D6, 60) : isGra ? color.new(#2453D6, 60) : isNuit ? color.new(#E9E4D8, 65) : color.new(#2962FF, 60)
 
-// Couleurs signaux RSI
-rsiOverboughtColor = input.color(color.red, "Couleur signal RSI surachat")
-rsiOversoldColor = input.color(color.green, "Couleur signal RSI survente")
+// ─── Entrées : moyennes mobiles ─────────────────────────────────────────────
+GM = "1 · Moyennes mobiles"
+s1 = input.bool(false, "Rapide",        inline = "m1", group = GM, display = display.none)
+t1 = input.string("EMA",  "", options = ["EMA", "MA", "SMMA", "WMA", "VWMA", "HMA"], inline = "m1", group = GM, display = display.none)
+l1 = input.int(13,  "", minval = 1, inline = "m1", group = GM, display = display.none)
 
-// Couleur bougies Heikin Ashi
-haBullColor = input.color(color.green, "Couleur bougie HA bullish")
-haBearColor = input.color(color.red, "Couleur bougie HA bearish")
+s2 = input.bool(false, "Intermédiaire", inline = "m2", group = GM, display = display.none)
+t2 = input.string("EMA",  "", options = ["EMA", "MA", "SMMA", "WMA", "VWMA", "HMA"], inline = "m2", group = GM, display = display.none)
+l2 = input.int(25,  "", minval = 1, inline = "m2", group = GM, display = display.none)
 
-// Autres options
-showBB = input.bool(true, "Afficher Bandes de Bollinger")
-useHA = input.bool(true, "Bougies Heikin Ashi")
-showBackground = input.bool(true, "Afficher zones de fond tendance MACD/RSI")
+s3 = input.bool(true,  "Lente",         inline = "m3", group = GM, display = display.none)
+t3 = input.string("EMA",  "", options = ["EMA", "MA", "SMMA", "WMA", "VWMA", "HMA"], inline = "m3", group = GM, display = display.none)
+l3 = input.int(32,  "", minval = 1, inline = "m3", group = GM, display = display.none)
 
-// Alertes
-alertEMA = input.bool(true, "Afficher alertes EMA 20/50")
-alertMACD = input.bool(true, "Afficher alertes MACD")
-alertRSI = input.bool(true, "Afficher alertes RSI")
+s4 = input.bool(true,  "Support 1",     inline = "m4", group = GM, tooltip = "MA : moyenne mobile simple.", display = display.none)
+t4 = input.string("MA",   "", options = ["EMA", "MA", "SMMA", "WMA", "VWMA", "HMA"], inline = "m4", group = GM, display = display.none)
+l4 = input.int(100, "", minval = 1, inline = "m4", group = GM, display = display.none)
 
-// Taille et style des signaux
-signalSizeStr = input.string("Small", "Taille des signaux", options=["Tiny", "Small", "Normal", "Large"])
-signalShapeStyleEMAUpStr = input.string("TriangleUp", "Style signal EMA haussier", options=["TriangleUp", "Circle", "LabelUp"])
-signalShapeStyleEMADownStr = input.string("TriangleDown", "Style signal EMA baissier", options=["TriangleDown", "Circle", "LabelDown"])
+s5 = input.bool(true,  "Support 2",     inline = "m5", group = GM, tooltip = "Ton ancien script calculait cette ligne comme une SMMA 99, qui équivaut à une EMA 197 : la ligne est quasi identique. Pour retrouver l'ancien calcul, choisis SMMA et 99.", display = display.none)
+t5 = input.string("EMA",  "", options = ["EMA", "MA", "SMMA", "WMA", "VWMA", "HMA"], inline = "m5", group = GM, display = display.none)
+l5 = input.int(200, "", minval = 1, inline = "m5", group = GM, display = display.none)
 
-// Styles Bollinger
-bbLineStyle = input.string("Pointillé", "Style ligne Bollinger", options=["Solide", "Pointillé", "Point-Point-Point"])
-bbLineWidth = input.int(1, "Épaisseur ligne Bollinger", minval=1, maxval=5)
+s6 = input.bool(false, "Support 3",     inline = "m6", group = GM, display = display.none)
+t6 = input.string("MA",   "", options = ["EMA", "MA", "SMMA", "WMA", "VWMA", "HMA"], inline = "m6", group = GM, display = display.none)
+l6 = input.int(300, "", minval = 1, inline = "m6", group = GM, display = display.none)
 
-// Déviation Bollinger
-bbDev = input.float(2.0, "Déviation Bollinger")
+s7  = input.bool(false, "Autre UT",     inline = "m7", group = GM, tooltip = "Moyenne calculée dans une autre unité de temps (ex. l'EMA 200 en 4H, ou une moyenne hebdo sur un graphique daily).", display = display.none)
+t7  = input.string("EMA",  "", options = ["EMA", "MA", "SMMA", "WMA", "VWMA", "HMA"], inline = "m7", group = GM, display = display.none)
+l7  = input.int(200, "", minval = 1, inline = "m7", group = GM, display = display.none)
+tf7 = input.timeframe("240", "", inline = "m7", group = GM, display = display.none)
 
-// Activation tableau latéral
-showSidePanel = input.bool(true, "Afficher tableau latéral (PC uniquement)")
+showEndLbl = input.bool(true, "Nom en bout de ligne", group = GM, display = display.none)
+srcMa      = input.source(close, "Source des moyennes", group = GM, display = display.none)
 
-// === FONCTIONS UTILES ===
-f_getLineStyle(style) =>
-    style == "Solide" ? line.style_solid :
-     style == "Pointillé" ? line.style_dotted :
-     line.style_dashed
+// ─── Entrées : nuage et supports ────────────────────────────────────────────
+GS = "2 · Nuage et supports"
+showCloud = input.bool(false, "Nuage entre Rapide et Lente", group = GS, display = display.none)
+tolAtr    = input.float(0.5, "Tolérance de contact (× ATR)", minval = 0, step = 0.1, group = GS, tooltip = "Une barre touche un support si son plus bas descend à moins de cette distance de la moyenne (en ATR 14) et que sa clôture tient au-dessus. Sert au tableau (orange au contact), aux gros points du RSI, aux losanges et aux alertes.", display = display.none)
+showTouch = input.bool(false, "Losange à chaque contact de support", group = GS, display = display.none)
+showCross = input.bool(false, "Carré à chaque croisement Rapide / Lente", group = GS, display = display.none)
+showBreak = input.bool(false, "Croix à chaque clôture sous le Support 2", group = GS, display = display.none)
 
-f_getSize(size) =>
-    size == "Tiny" ? size.tiny :
-     size == "Small" ? size.small :
-     size == "Normal" ? size.normal :
-     size.large
+// ─── Entrées : RSI ──────────────────────────────────────────────────────────
+GR = "3 · RSI"
+rsiLen  = input.int(14, "Longueur", minval = 2, inline = "r1", group = GR, display = display.none)
+rsiSrc  = input.source(close, "Source", inline = "r1", group = GR, display = display.none)
+thrMode = input.string("Fixes", "Seuils", options = ["Fixes", "Adaptatifs"], group = GR, tooltip = "Fixes : les niveaux de surachat et de survente ci-dessous. Adaptatifs : les extrêmes propres au titre, mesurés sur ses dernières barres. En tendance haussière, la survente adaptative remonte vers 40 : tu n'attends plus un 30 qui ne vient jamais.", display = display.none)
+obLvl   = input.int(70, "Fixes : surachat", minval = 51, maxval = 99, inline = "r2", group = GR, display = display.none)
+osLvl   = input.int(30, "survente", minval = 1, maxval = 49, inline = "r2", group = GR, display = display.none)
+adLen   = input.int(250, "Adaptatifs : période", minval = 20, inline = "r3", group = GR, display = display.none)
+adPct   = input.int(10, "centile", minval = 1, maxval = 45, inline = "r3", group = GR, tooltip = "Avec 10, la survente est le niveau sous lequel le RSI n'est passé que 10 % du temps sur la période, et le surachat celui qu'il n'a dépassé que 10 % du temps.", display = display.none)
 
-f_getShape(shapeStr) =>
-     shapeStr == "TriangleUp" ? shape.triangleup :
-     shapeStr == "TriangleDown" ? shape.triangledown :
-     shapeStr == "Circle" ? shape.circle :
-     shapeStr == "LabelUp" ? shape.labelup :
-     shape.labeldown
+// ─── Entrées : signaux du RSI ───────────────────────────────────────────────
+GX = "4 · Signaux du RSI"
+showTurn = input.bool(true, "Points de retournement", group = GX, tooltip = "Un point marque le creux du RSI en survente (ou son sommet en surachat) dès que le RSI repart dans l'autre sens, à la clôture de la barre suivante : en général plusieurs barres avant la sortie de zone. Point plein : dans le sens de la tendance de fond (cours au-dessus du Support 2 pour une survente). Gros point : survente sur un support. Point creux : contre la tendance.", display = display.none)
+turnOnPx = input.bool(true, "Aussi sous les bougies", group = GX, display = display.none)
+hideCtr  = input.bool(false, "Masquer les points contre la tendance", group = GX, display = display.none)
+showRev  = input.bool(true, "Prix déclencheurs à droite", group = GX, tooltip = "La clôture qu'il faudrait à la prochaine barre pour que le RSI touche la survente ou le surachat. Tu connais le niveau avant qu'il soit atteint et tu peux y placer un ordre.", display = display.none)
+showFS   = input.bool(true, "Failure swings de Wilder", group = GX, tooltip = "Triangle vert : le RSI est passé en survente, a rebondi, a fait un repli sans repasser en survente, puis a dépassé le sommet de son rebond. La survente est validée, pas seulement touchée. Triangle rouge : le miroir en surachat. C'est le signal de confirmation préféré de Welles Wilder, l'inventeur du RSI.", display = display.none)
 
-bgOpacity = math.round(255 * (100 - bgOpacityPerc) / 100)
+// ─── Entrées : divergences ──────────────────────────────────────────────────
+GD = "5 · Divergences du RSI"
+showBull = input.bool(true,  "Haussières", group = GD, tooltip = "Le prix fait un plus bas plus bas, le RSI un plus bas plus haut : la baisse s'essouffle.", display = display.none)
+showHid  = input.bool(false, "Haussières cachées", group = GD, tooltip = "Le prix fait un plus bas plus haut, le RSI un plus bas plus bas : signal de continuation dans une tendance haussière.", display = display.none)
+showBear = input.bool(true,  "Baissières", group = GD, tooltip = "Le prix fait un plus haut plus haut, le RSI un plus haut plus bas : la hausse s'essouffle.", display = display.none)
+divZone  = input.bool(true,  "Seulement depuis une zone extrême", group = GD, tooltip = "Une divergence haussière ne compte que si le premier creux du RSI était en survente, une baissière que si le premier sommet était en surachat (pour une cachée : le second creux). Moins de divergences, mais plus significatives.", display = display.none)
+showForm = input.bool(false, "Divergences en formation", group = GD, tooltip = "Signale une divergence possible dès que le prix fait un nouvel extrême avec un RSI qui ne suit pas, sans attendre la confirmation du pivot. En pointillés, suivie d'un « ? », et seulement sur les dernières barres. Elle disparaît si le RSI finit par suivre le prix.", display = display.none)
+pivL     = input.int(5,  "Pivot : gauche", minval = 1, inline = "d1", group = GD, display = display.none)
+pivR     = input.int(3,  "droite", minval = 1, inline = "d1", group = GD, tooltip = "Une divergence n'apparaît qu'une fois le pivot confirmé, soit ce nombre de barres après le creux ou le sommet. Plus petit : plus tôt, mais plus de fausses divergences.", display = display.none)
+rngMin   = input.int(5,  "Écart entre pivots : min", minval = 1, inline = "d2", group = GD, display = display.none)
+rngMax   = input.int(60, "max", minval = 1, inline = "d2", group = GD, display = display.none)
 
-// === HEIKIN-ASHI ===
-haClose = (open + high + low + close) / 4
-var float haOpen = na
-haOpen := na(haOpen[1]) ? (open + close) / 2 : (haOpen[1] + haClose[1]) / 2
-haHigh = math.max(high, math.max(haClose, haOpen))
-haLow = math.min(low, math.min(haClose, haOpen))
-bodyColor = haClose > haOpen ? haBullColor : haBearColor
+// ─── Entrées : tableau ──────────────────────────────────────────────────────
+GT = "6 · Tableau"
+showTable = input.bool(true, "Afficher", inline = "t1", group = GT, display = display.none)
+tablePos  = input.string("En haut à droite", "", options = ["En haut à droite", "En bas à droite", "En haut à gauche", "En bas à gauche"], inline = "t1", group = GT, display = display.none)
 
-plotcandle(
-    useHA ? haOpen : na,
-    useHA ? haHigh : na,
-    useHA ? haLow : na,
-    useHA ? haClose : na,
-    title="Bougies Heikin Ashi",
-    color=bodyColor,
-    bordercolor=bodyColor
-)
 
-// === EMAS ===
-ema20 = ta.ema(close, 20)
-ema50 = ta.ema(close, 50)
-ema100 = ta.ema(close, 100)
-ema200 = ta.ema(close, 200)
+// ─── Fonctions ──────────────────────────────────────────────────────────────
+calcMa(simple string kind, float src, simple int len) =>
+    switch kind
+        "EMA"  => ta.ema(src, len)
+        "MA"   => ta.sma(src, len)
+        "SMMA" => ta.rma(src, len)
+        "WMA"  => ta.wma(src, len)
+        "VWMA" => ta.vwma(src, len)
+        =>        ta.hma(src, len)
 
-plot(ema20, title="EMA 20", color=ema20Color, linewidth=emaLineWidth, style=f_getLineStyle(emaLineStyle))
-plot(ema50, title="EMA 50", color=ema50Color, linewidth=emaLineWidth, style=f_getLineStyle(emaLineStyle))
-plot(ema100, title="EMA 100", color=ema100Color, linewidth=emaLineWidth, style=f_getLineStyle(emaLineStyle))
-plot(ema200, title="EMA 200", color=ema200Color, linewidth=emaLineWidth, style=f_getLineStyle(emaLineStyle))
+// Une moyenne n'est affichée qu'une fois qu'elle compte autant de barres d'historique que sa longueur :
+// avant, la ligne existe mais n'a pas encore de sens (ex. EMA 200 weekly sur un titre coté depuis 3 ans).
+warm(float m, simple int len) =>
+    bar_index >= len - 1 ? m : na
 
-emaCrossUp = ta.crossover(ema20, ema50)
-emaCrossDown = ta.crossunder(ema20, ema50)
+maName(simple string kind, simple int len) =>
+    kind + " " + str.tostring(len)
 
-plotshape(alertEMA and emaCrossUp, title="Signal Achat EMA", location=location.belowbar, color=ema20Color, style=f_getShape(signalShapeStyleEMAUpStr), size=f_getSize(signalSizeStr))
-plotshape(alertEMA and emaCrossDown, title="Signal Vente EMA", location=location.abovebar, color=ema50Color, style=f_getShape(signalShapeStyleEMADownStr), size=f_getSize(signalSizeStr))
+tfName(simple string tf) =>
+    s = timeframe.in_seconds(tf)
+    switch
+        s >= 2419200 => str.tostring(math.round(s / 2628003.0)) + "M"
+        s >= 604800  => str.tostring(math.round(s / 604800.0)) + "S"
+        s >= 86400   => str.tostring(math.round(s / 86400.0)) + "J"
+        s >= 3600    => str.tostring(math.round(s / 3600.0)) + "H"
+        =>              str.tostring(math.round(s / 60.0)) + "min"
 
-// === BANDES DE BOLLINGER ===
-bbBasis = ta.sma(close, 20)
-bbUpper = bbBasis + bbDev * ta.stdev(close, 20)
-bbLower = bbBasis - bbDev * ta.stdev(close, 20)
+// Nombre à la française : virgule décimale.
+fr(float x, string fmt) =>
+    str.replace_all(str.tostring(x, fmt), ".", ",")
 
-plot(showBB ? bbUpper : na, title="BB Supérieure", color=color.blue, linewidth=bbLineWidth, style=f_getLineStyle(bbLineStyle))
-plot(showBB ? bbLower : na, title="BB Inférieure", color=color.blue, linewidth=bbLineWidth, style=f_getLineStyle(bbLineStyle))
-plot(showBB ? bbBasis : na, title="BB Moyenne", color=color.gray, linewidth=bbLineWidth, style=f_getLineStyle(bbLineStyle))
+barUnit() =>
+    timeframe.isdaily ? "j" : timeframe.isweekly ? "sem." : timeframe.ismonthly ? "mois" : "b."
 
-// === RSI & MACD ===
-rsi = ta.rsi(close, 14)
-[macdLine, signalLine, _] = ta.macd(close, 12, 26, 9)
+// Lisibilité : sur fond clair, un texte trop pâle est assombri par pas de 10 % jusqu'à un contraste de 4,5:1.
+// Les lignes et les fonds gardent leur couleur ; seuls les textes passent par readable().
+lin(float v) =>
+    v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4)
 
-// === Signaux RSI / MACD ===
-rsiOverbought = ta.crossover(rsi, 70)
-rsiOversold = ta.crossunder(rsi, 30)
-plotshape(alertRSI and rsiOverbought, title="Signal RSI Surachat", location=location.abovebar, color=rsiOverboughtColor, style=shape.circle, size=f_getSize(signalSizeStr))
-plotshape(alertRSI and rsiOversold, title="Signal RSI Survente", location=location.belowbar, color=rsiOversoldColor, style=shape.circle, size=f_getSize(signalSizeStr))
+lum(color c) =>
+    0.2126 * lin(color.r(c) / 255) + 0.7152 * lin(color.g(c) / 255) + 0.0722 * lin(color.b(c) / 255)
 
-macdBullish = ta.crossover(macdLine, signalLine)
-macdBearish = ta.crossunder(macdLine, signalLine)
-plotshape(alertMACD and macdBullish, title="Signal MACD Haussier", location=location.belowbar, color=macdBullColor, style=shape.labelup, size=f_getSize(signalSizeStr))
-plotshape(alertMACD and macdBearish, title="Signal MACD Baissier", location=location.abovebar, color=macdBearColor, style=shape.labeldown, size=f_getSize(signalSizeStr))
+readable(color c) =>
+    float bgL = lum(chart.bg_color)
+    color out = c
+    if bgL > 0.5
+        for i = 1 to 10
+            if (bgL + 0.05) / (lum(out) + 0.05) >= 4.5
+                break
+            out := color.rgb(math.floor(color.r(out) * 0.9), math.floor(color.g(out) * 0.9), math.floor(color.b(out) * 0.9), color.t(out))
+    out
 
-// === ZONES DE FOND TENDANCE ===
-bullZone = macdLine > signalLine and rsi > 50
-bearZone = macdLine < signalLine and rsi < 50
-bgcolor(showBackground and bullZone ? color.new(bullBgColor, bgOpacity) : na)
-bgcolor(showBackground and bearZone ? color.new(bearBgColor, bgOpacity) : na)
+// ─── Moyennes mobiles ───────────────────────────────────────────────────────
+// Affichage : les moyennes et le RSI gardent leur étiquette sur l'échelle de prix ; les bornes du RSI n'en ont pas.
+// Rien ne s'affiche dans la ligne d'état, ni valeurs ni entrées (chaque entrée a display = display.none).
+D_PX   = display.all - display.status_line
+D_RSI  = display.all - display.status_line - display.price_scale
+D_MARK = display.all - display.status_line - display.price_scale
 
-// === TABLEAU LATÉRAL ===
-var label lbl_sidepanel = na
-if showSidePanel
-    f_formatValue(val) =>
-        str.tostring(math.round(val * 100) / 100)
-    macdTrend = macdLine > signalLine ? "Bullish" : "Bearish"
-    rsiTrend = rsi > 50 ? "Bullish" : "Bearish"
-    sidepanel_text = str.format(
-      "📊 Résumé Indicateur\n\nEMA20: {0}\nEMA50: {1}\nEMA100: {2}\nEMA200: {3}\n\nRSI(14): {4} ({5})\nMACD: {6}/{7} ({8})",
-      f_formatValue(ema20), f_formatValue(ema50), f_formatValue(ema100), f_formatValue(ema200),
-      f_formatValue(rsi), rsiTrend,
-      f_formatValue(macdLine), f_formatValue(signalLine), macdTrend
-    )
-    if not na(lbl_sidepanel)
-        label.delete(lbl_sidepanel)
-    lbl_sidepanel := label.new(bar_index + 5, high + tr, sidepanel_text,
-      xloc.bar_index, yloc.price,
-      style=label.style_label_left, color=color.new(color.black, 60), textcolor=color.white,
-      size=size.normal)
-else
-    if not na(lbl_sidepanel)
-        label.delete(lbl_sidepanel)
-        lbl_sidepanel := na
+m1 = warm(calcMa(t1, srcMa, l1), l1)
+m2 = warm(calcMa(t2, srcMa, l2), l2)
+m3 = warm(calcMa(t3, srcMa, l3), l3)
+m4 = warm(calcMa(t4, srcMa, l4), l4)
+m5 = warm(calcMa(t5, srcMa, l5), l5)
+m6 = warm(calcMa(t6, srcMa, l6), l6)
+m7 = request.security(syminfo.tickerid, tf7, warm(calcMa(t7, srcMa, l7), l7))
+
+p1 = plot(m1, "Rapide",        C_M1, 1, linestyle = LS_M1, force_overlay = true, display = s1 ? D_PX : display.none)
+p2 = plot(m2, "Intermédiaire", C_M2, 1, force_overlay = true, display = s2 ? D_PX : display.none)
+p3 = plot(m3, "Lente",         C_M3, 1, linestyle = plot.linestyle_dotted, force_overlay = true, display = s3 ? D_PX : display.none)
+plot(m4,      "Support 1",     C_M4, 2, force_overlay = true, display = s4 ? D_PX : display.none)
+plot(m5,      "Support 2",     C_M5, 2, force_overlay = true, display = s5 ? D_PX : display.none)
+plot(m6,      "Support 3",     C_M6, 2, force_overlay = true, display = s6 ? D_PX : display.none)
+plot(m7,      "Autre UT",      C_M7, 1, force_overlay = true, display = s7 ? D_PX : display.none)
+
+bullCT = m1 > m3
+fill(p1, p3, showCloud ? (bullCT ? C_CLOUD_UP : C_CLOUD_DN) : na, "Nuage de tendance")
+
+// ─── Contact des supports ───────────────────────────────────────────────────
+atr = ta.atr(14)
+tol = tolAtr * atr
+
+// Le plus bas vient chercher la moyenne et la clôture tient au-dessus (à la tolérance près).
+// Un rebond qui vient buter sous la moyenne par en dessous n'est donc pas compté.
+touches(float m) =>
+    not na(m) and low <= m + tol and close >= m - tol
+
+touchSup = touches(m4) or touches(m5)
+
+// ─── RSI ────────────────────────────────────────────────────────────────────
+rsi    = ta.rsi(rsiSrc, rsiLen)
+
+
+// Seuils actifs : fixes, ou centiles du RSI sur la période (repli sur les fixes tant que l'historique manque).
+adaptive = thrMode == "Adaptatifs"
+loAd = ta.percentile_linear_interpolation(rsi, adLen, adPct)
+hiAd = ta.percentile_linear_interpolation(rsi, adLen, 100 - adPct)
+lo   = adaptive and not na(loAd) ? loAd : osLvl
+hi   = adaptive and not na(hiAd) ? hiAd : obLvl
+
+// Bande entre surachat et survente, bordée de ses deux bornes : le volet ressort sans se fondre dans la chart.
+// En mode adaptatif, la bande suit les seuils adaptatifs.
+hOb = hline(obLvl, "Borne de surachat", C_BOUND, hline.style_solid, display = adaptive ? display.none : display.all)
+hline(50,          "Médiane",           color.new(C_GRID, 60), hline.style_dotted)
+hOs = hline(osLvl, "Borne de survente", C_BOUND, hline.style_solid, display = adaptive ? display.none : display.all)
+fill(hOb, hOs, C_BAND, "Bande", display = adaptive ? display.none : display.all)
+pHiAd = plot(hiAd, "Borne de surachat adaptative", C_BOUND, 1, display = adaptive ? D_RSI : display.none)
+pLoAd = plot(loAd, "Borne de survente adaptative", C_BOUND, 1, display = adaptive ? D_RSI : display.none)
+fill(pHiAd, pLoAd, C_BAND, "Bande adaptative", display = adaptive ? display.all : display.none)
+
+// Le RSI prend la couleur de la zone extrême où il se trouve.
+rsiCol = rsi <= lo ? C_BULL : rsi >= hi ? C_BEAR : C_RSI
+pRsi = plot(rsi, "RSI", rsiCol, 1, display = D_PX)
+pMid = plot(50, "Médiane (calcul)", display = display.none, editable = false)
+fill(pRsi, pMid, 100, hi, color.new(C_BEAR, 30), color.new(C_BEAR, 100), "Surachat (dégradé)")
+fill(pRsi, pMid, lo, 0, color.new(C_BULL, 100), color.new(C_BULL, 30), "Survente (dégradé)")
+
+// ─── Extrêmes du RSI ────────────────────────────────────────────────────────
+// Creux du RSI en survente (ou sommet en surachat), confirmé dès la barre suivante.
+troughLo = rsi[1] < rsi[2] and rsi > rsi[1] and rsi[1] <= lo[1]
+peakHi   = rsi[1] > rsi[2] and rsi < rsi[1] and rsi[1] >= hi[1]
+
+// Un seul signal par passage en zone : le RSI doit revenir à mi-chemin de 50 pour réarmer,
+// sauf si le nouveau creux (ou sommet) va plus loin que le précédent.
+var bool  loArmed = true
+var float loLast  = na
+var bool  hiArmed = true
+var float hiLast  = na
+bool bullTurn = false
+bool bearTurn = false
+
+if barstate.isconfirmed
+    if troughLo and (loArmed or rsi[1] < loLast)
+        bullTurn := true
+        loArmed  := false
+        loLast   := rsi[1]
+    if peakHi and (hiArmed or rsi[1] > hiLast)
+        bearTurn := true
+        hiArmed  := false
+        hiLast   := rsi[1]
+    if rsi >= lo + (50 - lo) / 2
+        loArmed := true
+    if rsi <= hi - (hi - 50) / 2
+        hiArmed := true
+
+// Contexte du creux (ou du sommet) : sens de la tendance de fond, donnée par le Support 2,
+// et contact d'un support. Sans historique suffisant pour le Support 2, le point reste plein.
+bullWith  = na(m5[1]) or close[1] > m5[1]
+bearWith  = na(m5[1]) or close[1] < m5[1]
+bullOnSup = touchSup or touchSup[1]
+bullShow  = showTurn and bullTurn and (bullWith or not hideCtr)
+bearShow  = showTurn and bearTurn and (bearWith or not hideCtr)
+// Point plein : dans le sens de la tendance de fond. Anneau : contre. Gros point : survente sur un support.
+// Dessinés en étiquettes, qui ne comptent pas dans la limite de 64 tracés de Pine (contrairement à plotchar).
+// Le point se pose sur la barre du creux (ou du sommet), une barre avant la confirmation.
+// Le point plein est une vraie forme (cercle) ; l'anneau est un caractère, en teinte foncée pour rester lisible.
+turnDot(float y, color col, string sz, bool onPx, bool below) =>
+    if onPx
+        label.new(bar_index - 1, y, "", yloc = below ? yloc.belowbar : yloc.abovebar, color = col, style = label.style_circle, size = sz, force_overlay = true)
+    else
+        label.new(bar_index - 1, y, "", color = col, style = label.style_circle, size = sz)
+
+turnRing(float y, color col, bool onPx, bool below) =>
+    if onPx
+        label.new(bar_index - 1, y, "○", yloc = below ? yloc.belowbar : yloc.abovebar, color = color(na), textcolor = readable(col), style = label.style_none, size = size.large, force_overlay = true)
+    else
+        label.new(bar_index - 1, y, "○", color = color(na), textcolor = readable(col), style = label.style_none, size = size.large)
+
+if bullShow
+    if bullWith
+        string sz = bullOnSup ? size.normal : size.small
+        turnDot(rsi[1], C_BULL, sz, false, true)
+        if turnOnPx
+            turnDot(low[1], C_BULL, sz, true, true)
+    else
+        turnRing(rsi[1], C_BULL, false, true)
+        if turnOnPx
+            turnRing(low[1], C_BULL, true, true)
+if bearShow
+    if bearWith
+        turnDot(rsi[1], C_BEAR, size.small, false, false)
+        if turnOnPx
+            turnDot(high[1], C_BEAR, size.small, true, false)
+    else
+        turnRing(rsi[1], C_BEAR, false, false)
+        if turnOnPx
+            turnRing(high[1], C_BEAR, true, false)
+
+// ─── Failure swings de Wilder ───────────────────────────────────────────────
+// Haussier : survente, rebond, repli qui reste au-dessus de la survente, puis cassure du sommet du rebond.
+// Étapes : 0 attente, 1 en survente, 2 rebond, 3 repli. La figure est abandonnée au-delà de 30 barres.
+// Pour éviter les simples oscillations, le rebond doit monter d'au moins 5 points au-dessus de la survente
+// et le repli redescendre d'au moins 2 points ; sinon, le mouvement compte comme la suite du rebond.
+// Baissier : le miroir en surachat.
+FS_MAX    = 30
+FS_BOUNCE = 5
+FS_PULL   = 2
+var int   fsUp     = 0
+var float fsUpTop  = na
+var float fsUpLow  = na
+var int   fsUpBar  = na
+var int   fsDn     = 0
+var float fsDnBot  = na
+var float fsDnHigh = na
+var int   fsDnBar  = na
+bool fsBull = false
+bool fsBear = false
+
+if barstate.isconfirmed
+    if rsi <= lo
+        fsUp := 1
+    else if fsUp == 1
+        fsUp    := 2
+        fsUpTop := rsi
+        fsUpBar := bar_index
+    else if fsUp == 2
+        if rsi > fsUpTop
+            fsUpTop := rsi
+        else
+            fsUp    := 3
+            fsUpLow := rsi
+    else if fsUp == 3
+        if rsi > fsUpTop
+            if fsUpTop >= lo + FS_BOUNCE and fsUpTop - fsUpLow >= FS_PULL
+                fsBull := true
+                fsUp   := 0
+            else
+                fsUp    := 2
+                fsUpTop := rsi
+        else
+            fsUpLow := math.min(fsUpLow, rsi)
+    if fsUp >= 2 and bar_index - fsUpBar > FS_MAX
+        fsUp := 0
+
+    if rsi >= hi
+        fsDn := 1
+    else if fsDn == 1
+        fsDn    := 2
+        fsDnBot := rsi
+        fsDnBar := bar_index
+    else if fsDn == 2
+        if rsi < fsDnBot
+            fsDnBot := rsi
+        else
+            fsDn     := 3
+            fsDnHigh := rsi
+    else if fsDn == 3
+        if rsi < fsDnBot
+            if fsDnBot <= hi - FS_BOUNCE and fsDnHigh - fsDnBot >= FS_PULL
+                fsBear := true
+                fsDn   := 0
+            else
+                fsDn    := 2
+                fsDnBot := rsi
+        else
+            fsDnHigh := math.max(fsDnHigh, rsi)
+    if fsDn >= 2 and bar_index - fsDnBar > FS_MAX
+        fsDn := 0
+
+// Triangle plein, décalé de quelques points sous (ou au-dessus de) la ligne du RSI pour ne pas la masquer.
+if showFS and fsBull
+    label.new(bar_index, rsi - 4, "", color = C_BULL, style = label.style_triangleup, size = size.tiny, tooltip = "Failure swing haussier (Wilder) : la survente est validée")
+if showFS and fsBear
+    label.new(bar_index, rsi + 4, "", color = C_BEAR, style = label.style_triangledown, size = size.tiny, tooltip = "Failure swing baissier (Wilder) : le surachat est validé")
+
+// ─── Régime et durée en zone ────────────────────────────────────────────────
+// Régime (Cardwell, Brown) : en tendance haussière, le RSI tient au-dessus de 40 ;
+// en tendance baissière, il plafonne sous 60. Mesuré sur les 50 dernières barres.
+rsiMin50 = ta.lowest(rsi, 50)
+rsiMax50 = ta.highest(rsi, 50)
+regime   = rsiMin50 >= 40 ? 1 : rsiMax50 <= 60 ? -1 : 0
+
+// Barres consécutives en survente ou en surachat, barre actuelle comprise.
+sinceOutLo = ta.barssince(rsi > lo)
+sinceOutHi = ta.barssince(rsi < hi)
+osBars = rsi <= lo ? sinceOutLo : 0
+obBars = rsi >= hi ? sinceOutHi : 0
+
+// RSI inversé (Siligardos) : clôture qui amènerait le RSI exactement au niveau visé à la prochaine barre.
+chg = ta.change(rsiSrc)
+auc = ta.rma(math.max(chg, 0), rsiLen)
+adc = ta.rma(math.max(-chg, 0), rsiLen)
+
+rsiPrice(float target) =>
+    float rs = target / (100 - target)
+    float x  = (rsiLen - 1) * (adc * rs - auc)
+    float p  = x >= 0 ? rsiSrc + x : rsiSrc + x / rs
+    p > 0 ? p : na
+
+// ─── Divergences RSI ────────────────────────────────────────────────────────
+// Pivots repérés sur le RSI, comparés aux plus bas / plus hauts du prix aux mêmes barres.
+plPiv = ta.pivotlow(rsi, pivL, pivR)
+phPiv = ta.pivothigh(rsi, pivL, pivR)
+
+// Pour chaque pivot, on garde aussi le seuil extrême en vigueur à ce moment-là (fixe ou adaptatif).
+var int   plBar = na
+var float plRsi = na
+var float plLow = na
+var float plThr = na
+var int   phBar = na
+var float phRsi = na
+var float phHigh = na
+var float phThr = na
+
+bool bullDiv = false
+bool hidDiv  = false
+bool bearDiv = false
+
+if not na(plPiv)
+    int   b  = bar_index - pivR
+    float r  = rsi[pivR]
+    float lo_ = low[pivR]
+    float th = lo[pivR]
+    if not na(plBar)
+        int gap = b - plBar
+        if gap >= rngMin and gap <= rngMax
+            bullDiv := lo_ < plLow and r > plRsi and (not divZone or plRsi <= plThr)
+            hidDiv  := lo_ > plLow and r < plRsi and (not divZone or r <= th)
+            if bullDiv and showBull
+                line.new(plBar, plRsi, b, r, color = C_BULL, width = 2)
+                label.new(b, r, "Div+", color = color(na), textcolor = readable(C_BULL), style = label.style_label_up, size = size.small)
+            if hidDiv and showHid
+                line.new(plBar, plRsi, b, r, color = color.new(C_BULL, 30), style = line.style_dashed, width = 1)
+                label.new(b, r, "Cachée+", color = color(na), textcolor = color.new(readable(C_BULL), 30), style = label.style_label_up, size = size.small)
+    plBar := b
+    plRsi := r
+    plLow := lo_
+    plThr := th
+
+if not na(phPiv)
+    int   b  = bar_index - pivR
+    float r  = rsi[pivR]
+    float hi_ = high[pivR]
+    float th = hi[pivR]
+    if not na(phBar)
+        int gap = b - phBar
+        if gap >= rngMin and gap <= rngMax
+            bearDiv := hi_ > phHigh and r < phRsi and (not divZone or phRsi >= phThr)
+            if bearDiv and showBear
+                line.new(phBar, phRsi, b, r, color = C_BEAR, width = 2)
+                label.new(b, r, "Div−", color = color(na), textcolor = readable(C_BEAR), style = label.style_label_down, size = size.small)
+    phBar := b
+    phRsi := r
+    phHigh := hi_
+    phThr := th
+
+// Divergence en formation : le creux (ou le sommet) de RSI le plus marqué des dernières barres,
+// tant qu'il n'est pas encore confirmé en pivot. Dessinée seulement sur la dernière barre.
+fLoOff = -ta.lowestbars(rsi, pivL + pivR)
+fHiOff = -ta.highestbars(rsi, pivL + pivR)
+
+// ─── Signaux des moyennes ───────────────────────────────────────────────────
+crossUp  = ta.crossover(m1, m3)
+crossDn  = ta.crossunder(m1, m3)
+underS2  = ta.crossunder(close, m5)
+breakS2  = barstate.isconfirmed and underS2
+
+plotshape(showTouch and touchSup, "Contact support", shape.diamond, location.belowbar, color.new(C_WARN, 20), size = size.tiny, force_overlay = true, display = D_MARK)
+plotshape(showCross and crossUp, "Croisement haussier", shape.square, location.belowbar, C_BULL, size = size.tiny, force_overlay = true, display = D_MARK)
+plotshape(showCross and crossDn, "Croisement baissier", shape.square, location.abovebar, C_BEAR, size = size.tiny, force_overlay = true, display = D_MARK)
+plotshape(showBreak and breakS2, "Clôture sous Support 2", shape.xcross, location.abovebar, C_BEAR, size = size.tiny, force_overlay = true, display = D_MARK)
+
+// ─── Repères en bout de graphique ───────────────────────────────────────────
+var array<label> endLabels = array.new<label>()
+var array<line>  endLines  = array.new<line>()
+
+addEnd(array<label> arr, bool show, float y, string txt, color col) =>
+    if show and not na(y)
+        arr.push(label.new(bar_index + 2, y, txt, color = color(na), textcolor = readable(col), style = label.style_label_left, size = size.normal, force_overlay = true))
+
+// Trait pointillé vers la droite + prix, pour un niveau du RSI inversé.
+addLevel(array<label> lbls, array<line> lns, float y, string txt, color col) =>
+    if not na(y)
+        lns.push(line.new(bar_index, y, bar_index + 14, y, color = color.new(col, 40), style = line.style_dotted, width = 1, force_overlay = true))
+        lbls.push(label.new(bar_index + 14, y, txt, color = color(na), textcolor = readable(col), style = label.style_label_left, size = size.normal, force_overlay = true))
+
+if barstate.islast
+    for l in endLabels
+        l.delete()
+    for ln in endLines
+        ln.delete()
+    endLabels.clear()
+    endLines.clear()
+    if showEndLbl
+        addEnd(endLabels, s1, m1, maName(t1, l1), C_M1)
+        addEnd(endLabels, s2, m2, maName(t2, l2), C_M2)
+        addEnd(endLabels, s3, m3, maName(t3, l3), C_M3)
+        addEnd(endLabels, s4, m4, maName(t4, l4), C_M4)
+        addEnd(endLabels, s5, m5, maName(t5, l5), C_M5)
+        addEnd(endLabels, s6, m6, maName(t6, l6), C_M6)
+        addEnd(endLabels, s7, m7, maName(t7, l7) + " · " + tfName(tf7), C_M7)
+    if showRev
+        float pLo = rsiPrice(lo)
+        float pHi = rsiPrice(hi)
+        addLevel(endLabels, endLines, pLo, "RSI " + fr(lo, "0") + " à " + fr(pLo, format.mintick), C_BULL)
+        addLevel(endLabels, endLines, pHi, "RSI " + fr(hi, "0") + " à " + fr(pHi, format.mintick), C_BEAR)
+    if showForm and showBull and not na(plBar) and fLoOff < pivR
+        int   cBar = bar_index - fLoOff
+        float cRsi = rsi[fLoOff]
+        int   gap  = cBar - plBar
+        if gap >= rngMin and gap <= rngMax and low[fLoOff] < plLow and cRsi > plRsi and (not divZone or plRsi <= plThr)
+            endLines.push(line.new(plBar, plRsi, cBar, cRsi, color = color.new(C_BULL, 40), style = line.style_dotted, width = 2))
+            endLabels.push(label.new(cBar, cRsi, "Div+ ?", color = color(na), textcolor = readable(C_BULL), style = label.style_label_up, size = size.small))
+    if showForm and showBear and not na(phBar) and fHiOff < pivR
+        int   cBar = bar_index - fHiOff
+        float cRsi = rsi[fHiOff]
+        int   gap  = cBar - phBar
+        if gap >= rngMin and gap <= rngMax and high[fHiOff] > phHigh and cRsi < phRsi and (not divZone or phRsi >= phThr)
+            endLines.push(line.new(phBar, phRsi, cBar, cRsi, color = color.new(C_BEAR, 40), style = line.style_dotted, width = 2))
+            endLabels.push(label.new(cBar, cRsi, "Div− ?", color = color(na), textcolor = readable(C_BEAR), style = label.style_label_down, size = size.small))
+
+// ─── Tableau ────────────────────────────────────────────────────────────────
+tPos = switch tablePos
+    "En bas à droite"  => position.bottom_right
+    "En haut à gauche" => position.top_left
+    "En bas à gauche"  => position.bottom_left
+    =>                    position.top_right
+
+var table tb = table.new(tPos, 2, 6, bgcolor = color.new(chart.bg_color, 8), force_overlay = true)
+
+// En haut, une ligne vide sert de marge : TradingView pose ses propres icônes dans les coins hauts du graphique.
+tTop = tablePos == "En haut à droite" or tablePos == "En haut à gauche"
+tOff = tTop ? 1 : 0
+C_MUTED = color.new(chart.fg_color, 35)
+
+row(int r, string k, string v, color vc) =>
+    tb.cell(0, r, k, text_color = C_MUTED, text_size = size.normal, text_halign = text.align_left)
+    tb.cell(1, r, v, text_color = readable(vc), text_size = size.normal, text_halign = text.align_right)
+
+distRow(int r, float m, string name) =>
+    if not na(m)
+        d = (close / m - 1) * 100
+        c = touches(m) ? C_WARN : d < 0 ? C_BEAR : chart.fg_color
+        row(r, name, fr(d, "+0.0;-0.0") + " %", c)
+    else
+        row(r, name, "n/d", C_MUTED)
+
+sinceX = ta.barssince(crossUp or crossDn)
+
+if barstate.islast and showTable
+    tb.clear(0, 0, 1, 5)
+    if tTop
+        tb.cell(0, 0, "", height = 4)
+        tb.cell(1, 0, "", height = 4)
+    string trendTxt = (bullCT ? "Haussière" : "Baissière") + (na(sinceX) ? "" : " · " + str.tostring(sinceX) + " " + barUnit())
+    row(tOff,     "Tendance CT", trendTxt, bullCT ? C_BULL : C_BEAR)
+    distRow(tOff + 1, m4, maName(t4, l4))
+    distRow(tOff + 2, m5, maName(t5, l5))
+    string zoneTxt = osBars > 0 ? " · survente " + str.tostring(osBars) + " " + barUnit() : obBars > 0 ? " · surachat " + str.tostring(obBars) + " " + barUnit() : ""
+    row(tOff + 3, "RSI " + str.tostring(rsiLen), fr(rsi, "0.0") + zoneTxt, rsi <= lo ? C_BULL : rsi >= hi ? C_BEAR : chart.fg_color)
+    string regTxt = regime == 1 ? "Haussier · plancher 40" : regime == -1 ? "Baissier · plafond 60" : "Neutre"
+    row(tOff + 4, "Régime RSI", regTxt, regime == 1 ? C_BULL : regime == -1 ? C_BEAR : chart.fg_color)
+
+// ─── Alertes ────────────────────────────────────────────────────────────────
+alertcondition(ta.crossunder(rsi, lo), "RSI entre en survente",       "{{ticker}} : le RSI passe en survente")
+alertcondition(bullTurn,               "RSI se retourne en survente", "{{ticker}} : le RSI repart à la hausse depuis la survente")
+alertcondition(bullTurn and bullOnSup and bullWith, "RSI se retourne en survente sur un support", "{{ticker}} : le RSI repart de la survente pendant que le prix touche un support, dans le sens de la tendance de fond")
+alertcondition(ta.crossover(rsi, hi),  "RSI entre en surachat",       "{{ticker}} : le RSI passe en surachat")
+alertcondition(bearTurn,               "RSI se retourne en surachat", "{{ticker}} : le RSI repart à la baisse depuis le surachat")
+alertcondition(fsBull,  "Failure swing haussier",   "{{ticker}} : failure swing haussier sur le RSI, la survente est validée")
+alertcondition(fsBear,  "Failure swing baissier",   "{{ticker}} : failure swing baissier sur le RSI, le surachat est validé")
+alertcondition(bullDiv, "Divergence haussière RSI", "{{ticker}} : divergence haussière sur le RSI")
+alertcondition(bearDiv, "Divergence baissière RSI", "{{ticker}} : divergence baissière sur le RSI")
+alertcondition(touchSup and barstate.isconfirmed, "Contact d'un support", "{{ticker}} : contact avec un support")
+alertcondition(crossUp, "Croisement haussier CT",   "{{ticker}} : la Rapide croise la Lente à la hausse")
+alertcondition(crossDn, "Croisement baissier CT",   "{{ticker}} : la Rapide croise la Lente à la baisse")
+alertcondition(breakS2, "Clôture sous Support 2",   "{{ticker}} : clôture sous le Support 2")
