@@ -1,77 +1,65 @@
 # EMA · RSI
 
-Indicateur TradingView (Pine Script v6) qui réunit des moyennes mobiles sur le prix et un RSI dans **un seul indicateur**. 
-Il n'occupe qu'une place sur le plan gratuit de TradingView.
+Moyennes mobiles et RSI réunis dans **un seul indicateur** TradingView.
 
-Pensé pour le daily et le weekly : Repérer la tendance, les grands supports, et les extrêmes du RSI avec le moins de retard possible.
+Il sert à repérer, en daily ou en weekly, le moment où un titre en tendance revient sur un support avec un RSI en survente.
 
-[Aperçu](https://i.imgur.com/nXQhP9h.jpeg)
+[Aperçu]()
 
 ## Installation
 
-1. Ouvrir [TradingView](https://tradingview.com/) puis l'**éditeur Pine Script**.
+1. Ouvrir l'**éditeur Pine Script** de [TradingView](https://tradingview.com/).
 2. Coller le contenu de [`Main_Indicator.pine`](Main_Indicator.pine).
-3. Cliquer sur **Enregistrer**, puis **Ajouter au graphique**.
-4. Retirer l'ancien indicateur de moyennes et le RSI natif, qui font doublon.
+3. **Enregistrer**, puis **Ajouter au graphique**.
+4. Retirer l'ancien indicateur de moyennes et le RSI natif.
 
-Après une mise à jour du code, retire l'indicateur du graphique puis remets-le, pour repartir des nouveaux réglages par défaut.
+## Comment le lire
 
-## Ce qu'il affiche
-
-**Sur le prix**
-
-- EMA 32, MA 100 et EMA 200. Les EMA 13 et 25, la MA 300 et une moyenne d'une autre unité de temps sont disponibles en option.
-- Une moyenne n'apparaît qu'une fois qu'elle a assez d'historique (200 barres pour l'EMA 200).
-- Les prix déclencheurs : la clôture qui ferait passer le RSI à 30 ou à 70 à la prochaine barre.
-- Un tableau : tendance court terme, écart à la MA 100 et à l'EMA 200, RSI et durée en zone extrême, régime du RSI.
-
-**Dans le volet RSI**
-
-- Les points de retournement en zone extrême, une barre après le creux ou le sommet :
-
-  | Point | Signification |
-  |---|---|
-  | Plein | Dans le sens de la tendance de fond (cours au-dessus de l'EMA 200 pour une survente) |
-  | Gros et plein | Survente pendant que le prix touche la MA 100 ou l'EMA 200 |
-  | Anneau | Contre la tendance de fond |
-
-- Les failure swings de Wilder (triangles), qui confirment une survente ou un surachat.
-- Les divergences, filtrées pour ne garder que celles qui partent d'une zone extrême.
-- Une bande entre les seuils, fixes (30 / 70) ou adaptatifs au titre.
-
-**Thèmes** : Actuel, Cobalt, Graphite et Nuit verte, au choix dans le groupe Apparence.
-
-## Réglages utiles
-
-Les réglages par défaut conviennent pour commencer. Ceux qui valent la peine d'être changés :
-
-| Réglage | Groupe | Quand le changer |
+| Repère | Où | Ce que ça veut dire |
 |---|---|---|
-| Thème | Apparence | Pour l'accorder aux couleurs de ta chart |
-| Seuils adaptatifs | 3 · RSI | Titre en forte tendance, dont le RSI ne descend jamais à 30 |
-| Longueur 9 au lieu de 14 | 3 · RSI | Pour un RSI plus réactif, avec davantage de signaux |
+| Point vert | RSI et sous la bougie | Le RSI repart de la survente, dans le sens de la tendance |
+| **Gros point vert** | RSI et sous la bougie | Pareil, pendant que le prix touche la MA 100 ou l'EMA 200 : **le signal le plus solide** |
+| Anneau vert | RSI et sous la bougie | Survente à contre-tendance : rebond possible, mais plus risqué |
+| Point rouge | RSI et au-dessus de la bougie | Le RSI repart du surachat |
+| Triangle vert ou rouge | RSI | Survente ou surachat **confirmé** (failure swing de Wilder) |
+| Div+ / Div− | RSI | Divergence : le prix et le RSI ne vont plus dans le même sens |
+| « RSI 30 à 76,40 » | À droite du prix | Une clôture à 76,40 ou moins ferait passer le RSI en survente |
+| EMA 32, MA 100, EMA 200 | Prix | Tendance court terme et grands supports |
+
+**Le tableau**, en haut à droite :
+
+- **Tendance CT** : haussière ou baissière, et depuis combien de barres.
+- **MA 100 / EMA 200** : écart du cours avec chaque support. Orange quand le prix est dessus.
+- **RSI** : sa valeur, et depuis combien de barres il est en zone extrême.
+- **Régime RSI** : haussier si le RSI tient au-dessus de 40, baissier s'il plafonne sous 60.
+
+## Les alertes les plus utiles
+
+Clic droit sur le graphique, **Ajouter une alerte**, condition **EMA · RSI**, fréquence **Une fois par clôture de barre**.
+
+- **RSI se retourne en survente sur un support** : le gros point vert.
+- **Failure swing haussier** : la survente confirmée.
+- **RSI entre en survente** : pour être prévenu dès que le titre devient intéressant.
+
+Dix autres alertes sont disponibles dans la même liste (surachat, divergences, contact d'un support…).
+
+## Réglages à faire varier
+
+Les réglages par défaut conviennent au daily et au weekly. À changer seulement si besoin :
+
+| Réglage | Groupe | Quand |
+|---|---|---|
+| Thème | Apparence | Pour accorder les couleurs à ta chart (Actuel, Cobalt, Graphite, Nuit verte) |
+| Seuils adaptatifs | 3 · RSI | Si le RSI du titre ne descend jamais à 30 |
 | Masquer les points contre la tendance | 4 · Signaux du RSI | Pour ne garder que les signaux dans le sens de la tendance |
-| Divergences en formation | 5 · Divergences du RSI | Pour les voir plus tôt, avec quelques fausses alertes |
-| Tolérance de contact | 2 · Nuage et supports | À monter sur un titre très volatil, à baisser pour des contacts plus stricts |
+| Divergences en formation | 5 · Divergences du RSI | Pour les voir plus tôt, avec plus de fausses alertes |
+| Tolérance de contact | 2 · Nuage et supports | À monter sur un titre très volatil |
 | EMA 13 et nuage | 1 et 2 | À réafficher sur une chart weekly |
-| Support 2 en SMMA 99 | 1 · Moyennes mobiles | Pour retrouver l'ancienne « EMA 200 » (une SMMA 99 équivaut à une EMA 197) |
-
-## Alertes
-
-Clic droit sur le graphique, **Ajouter une alerte**, condition **EMA · RSI**. Choisir la fréquence **Une fois par clôture de barre**.
-
-- RSI entre en survente / en surachat
-- RSI se retourne en survente / en surachat
-- RSI se retourne en survente sur un support
-- Failure swing haussier / baissier
-- Divergence haussière / baissière
-- Contact d'un support
-- Croisement haussier / baissier court terme
-- Clôture sous le Support 2
+| Support 2 en SMMA 99 | 1 · Moyennes mobiles | Pour retrouver l'ancienne « EMA 200 » de la version précédente |
 
 ## Bon à savoir
 
-- Les prix déclencheurs valent pour la **clôture** de la prochaine barre, et se recalculent à chaque nouvelle bougie. Le calcul est celui du RSI inversé de Giorgos Siligardos.
-- Les points, triangles et divergences sont confirmés à la clôture de la barre : ils ne changent pas après coup. Seules les divergences en formation, en option, sont provisoires par nature.
-- TradingView garde au maximum 500 étiquettes par indicateur. Sur un très long historique, les points et divergences les plus anciens disparaissent.
-- Un outil de lecture, pas un conseil en investissement.
+- Les points, triangles et divergences sont confirmés à la clôture : ils ne bougent plus ensuite.
+- Le niveau « RSI 30 à … » vaut pour la prochaine clôture et se recalcule à chaque bougie.
+- Après une mise à jour du code, retire l'indicateur du graphique puis remets-le.
+- C'est un outil de lecture, pas un conseil en investissement.
