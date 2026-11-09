@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/Tomas-Cyberia/EMA_RSI/main/banniere.jpg" alt="EMA · RSI : la tendance, en daily et weekly" width="100%">
+
 # EMA · RSI
 
 Moyennes mobiles et RSI réunis dans **un seul indicateur** TradingView.
