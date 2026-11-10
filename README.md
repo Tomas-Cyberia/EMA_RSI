@@ -8,7 +8,7 @@
 
 ## En bref
 
-- **Une seule place** sur le plan gratuit : le script vit dans le volet du RSI et envoie sur le graphique les moyennes, les repères et le tableau.
+- **Une seule place** sur le plan gratuit : le script vit dans le volet du RSI, et envoie sur le graphique les moyennes, les repères et le tableau.
 - **Les supports** : l'EMA 32 pour le court terme, la MA 100 et l'EMA 200 pour les grands supports.
 - **Le RSI, sans attendre** : la clôture qui le ferait passer en survente, et un point dès qu'il s'y retourne.
 - **Le RSI, confirmé** : les failure swings de Wilder, les divergences et le régime du RSI.
@@ -51,7 +51,7 @@ Et il le confirme :
 
 ## Le tableau
 
-En haut à droite par défaut.
+En haut à droite par défaut, pour laisser le bas à Sessions · Liquidité.
 
 | Ligne | Ce qu'elle dit |
 |---|---|
@@ -100,7 +100,7 @@ Les réglages par défaut conviennent au daily et au weekly. À changer seulemen
 
 MA désigne la moyenne mobile simple. L'EMA 32 sert de support quand une tendance est trop forte pour revenir jusqu'à la MA 100 : une clôture nette dessous signale que le court terme s'essouffle. En weekly, une EMA 13 et une EMA 32 représentent environ 3 et 8 mois.
 
-Les anciennes versions calculaient leur « EMA 200 » comme une SMMA 99, qui équivaut à une EMA 197 : la ligne est presque identique. Pour retrouver ce calcul, choisis SMMA et 99 sur le Support 2.
+Les premières versions de l'indicateur calculaient leur « EMA 200 » comme une SMMA 99, qui équivaut à une EMA 197 : la ligne est presque identique. Pour retrouver ce calcul, choisis SMMA et 99 sur le Support 2.
 
 </details>
 
